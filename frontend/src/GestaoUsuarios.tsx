@@ -11,15 +11,17 @@ export function GestaoUsuarios() {
     const [novoEmail, setNovoEmail] = useState("");
     const [novaSenha, setNovaSenha] = useState("");
 
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
     const carregarUsuarios = async () => {
-        const res = await fetch("http://localhost:3000/users");
+        const res = await fetch(`${apiUrl}/users`);
         const json = await res.json();
         setUsuarios(json);
     };
 
     const criarUsuario = async () => {
         if (!novoEmail || !novaSenha) return;
-        await fetch("http://localhost:3000/users", {
+        await fetch(`${apiUrl}/users`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ nome: novoNome, email: novoEmail, senha: novaSenha })
@@ -30,7 +32,7 @@ export function GestaoUsuarios() {
 
     const deletarUsuario = async (id: string) => {
         if (confirm("Tem certeza?")) {
-            await fetch(`http://localhost:3000/users/${id}`, { method: "DELETE" });
+            await fetch(`${apiUrl}/users/${id}`, { method: "DELETE" });
             carregarUsuarios();
         }
     };
