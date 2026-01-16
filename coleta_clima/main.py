@@ -21,13 +21,11 @@ def enviar_para_fila(dados):
     try:
         credentials = pika.PlainCredentials(RABBIT_USER, RABBIT_PASS)
         parameters = pika.ConnectionParameters(host=RABBIT_HOST, port=RABBIT_PORT, credentials=credentials)
-        
-        # Abre
+    
         connection = pika.BlockingConnection(parameters)
         channel = connection.channel()
         channel.queue_declare(queue=QUEUE_NAME, durable=True)
-        
-        # Manda
+
         mensagem_json = json.dumps(dados)
         channel.basic_publish(
             exchange='',
@@ -36,8 +34,7 @@ def enviar_para_fila(dados):
             properties=pika.BasicProperties(delivery_mode=2)
         )
         print(f"[ENVIADO] {dados['temperatura']}°C em SP")
-        
-        # Fecha
+
         connection.close()
         return True
     except Exception as e:
@@ -84,4 +81,4 @@ if __name__ == "__main__":
             enviar_para_fila(dados_clima)
        
         print(" Dormindo...")
-        time.sleep(180) 
+        time.sleep(1800) 

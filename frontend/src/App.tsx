@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { MapPin, History, ChevronDown, ChevronUp, Download, Search, X, Sun, Moon, Wind, CloudRain, Cloud, CloudSnow, Snowflake, ThermometerSun, ThermometerSnowflake, CloudSun } from "lucide-react";
+import { MapPin, History, ChevronDown, ChevronUp, Download, Search, X, Sun, Moon, Wind, CloudRain, Cloud, ThermometerSun, ThermometerSnowflake, CloudSun } from "lucide-react";
+import { ClimateChart } from "./components/ClimaChart";
 
 import imgCalor from "@/assets/sol_quente.png";
 import imgNormal from "@/assets/sol_normal.png";
@@ -50,17 +50,20 @@ function App() {
 
   const [termoBusca, setTermoBusca] = useState("");
   const [dadosPesquisa, setDadosPesquisa] = useState<Clima | null>(null);
-  const [filtroGrafico, setFiltroGrafico] = useState<1 | 3 | 6 | 12 | 24>(1);
+  const [filtroGrafico, setFiltroGrafico] = useState<1 | 6 | 12 | 24 | 120>(1);
+
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
   const atual = dadosPesquisa || dados[0] || {
     temperatura: 0, umidade: 0, chuva: 0, eh_dia: true, insight: "Carregando...", createdAt: new Date().toISOString(),
     temp_max: 0, temp_min: 0, velocidade_vento: 0, condicao_ceu: 0, probabilidade_chuva: 0, cidade: "...", pais: ""
   };
 
-  const buscarDadosBackend = async () => {
+  const buscarDadosBackend = useCallback(async () => {
     if (dadosPesquisa) return;
+
     try {
-      const resposta = await fetch("http://localhost:3000/weather");
+      const resposta = await fetch(`${apiUrl}/weather`);
       const json = await resposta.json();
       const jsonComHora = json.map((item: any) => ({
         ...item,
@@ -70,7 +73,7 @@ function App() {
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
     }
-  };
+  }, [dadosPesquisa])
 
   const realizarPesquisa = async () => {
     if (!termoBusca) return;
@@ -126,14 +129,15 @@ function App() {
   }
 
   useEffect(() => {
-    if (isLogado) {
+    if (isLogado && !dadosPesquisa) {
+
       buscarDadosBackend();
-      const intervalo = setInterval(buscarDadosBackend, 5000);
+
+      const intervalo = setInterval(buscarDadosBackend, 300000);
+
       return () => clearInterval(intervalo);
     }
-  }, [isLogado, dadosPesquisa]);
-
-  const handleLogin = () => {
+  }, [isLogado, dadosPesquisa, buscarDadosBackend]); const handleLogin = () => {
     localStorage.setItem("auth", "true");
     setIsLogado(true);
     setNomeUsuario(localStorage.getItem("usuarioNome") || "Visitante");
@@ -247,21 +251,23 @@ function App() {
     document.body.removeChild(link);
   };
 
-  const getDadosGrafico = () => {
+  const dadosGrafico = useMemo(() => {
     if (dadosPesquisa) return [];
+
     const agora = new Date().getTime();
+
     const dadosFiltrados = dados.filter(d => {
       const tempoDado = new Date(d.createdAt).getTime();
       const diferencaHoras = (agora - tempoDado) / (1000 * 60 * 60);
       return diferencaHoras <= filtroGrafico;
     });
-    return [...dadosFiltrados].reverse();
-  };
 
-  const dadosGrafico = getDadosGrafico();
-  const listaParaMostrar = verHistorico ? dados.slice(0, 100) : dados.slice(0, 5);
+    return [...dadosFiltrados].reverse();
+  }, [dados, filtroGrafico, dadosPesquisa]);
 
   if (!isLogado) return <Login onLogin={handleLogin} />;
+
+  const listaParaMostrar = verHistorico ? dados : dados.slice(0, 5);
 
   return (
     <div className={`min-h-screen p-4 md:p-8 font-sans transition-colors duration-1000 ${getPageBackground()} overflow-x-hidden`}>
@@ -295,7 +301,7 @@ function App() {
                 <Search className="absolute right-2 top-2.5 h-5 w-5 text-slate-400 cursor-pointer" onClick={realizarPesquisa} />
               )}
             </div>
-            <Button variant="destructive" className="w-full md:w-auto hover:bg-red-500" onClick={handleLogout}>Sair</Button>
+            <Button variant="destructive" className="w-full md:w-auto bg-red-400 hover:bg-red-500" onClick={handleLogout}>Sair</Button>
           </div>
         </div>
 
@@ -388,27 +394,34 @@ function App() {
 
             <Card className="border-none shadow-lg bg-white/95 overflow-hidden">
               <CardHeader className="p-4 pb-0 flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
-                <CardTitle className="text-base text-slate-700">Variação de Temperatura</CardTitle>
+                <CardTitle className="text-base text-slate-700">Variações Climáticas</CardTitle>
                 <div className="flex gap-1">
-                  {[1, 3, 6, 12, 24].map((hora) => (
-                    <Button key={hora} variant={filtroGrafico === hora ? "default" : "outline"} size="sm" className="h-6 text-[10px] hover:bg-slate-300 px-2" onClick={() => setFiltroGrafico(hora as any)}>{hora}h</Button>
+                  {[
+                    { label: "1h", valor: 1 },
+                    { label: "6h", valor: 6 },
+                    { label: "12h", valor: 12 },
+                    { label: "24h", valor: 24 },
+                    { label: "5d", valor: 120 }
+                  ].map((item) => (
+                    <Button
+                      key={item.valor}
+                      variant={filtroGrafico === item.valor ? "default" : "outline"}
+                      size="sm"
+                      className="h-6 text-[10px] hover:bg-slate-300 px-2"
+                      onClick={() => setFiltroGrafico(item.valor as any)}
+                    >
+                      {item.label}
+                    </Button>
                   ))}
                 </div>
               </CardHeader>
-              <CardContent className="p-4 h-[200px]">
+              <CardContent className="p-4 h-[400px]">
                 {dadosPesquisa ? (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Gráfico indisponível na pesquisa</div>
+                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+                    Gráfico indisponível na pesquisa
+                  </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={dadosGrafico}>
-                      <defs><linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} /><stop offset="95%" stopColor="#f59e0b" stopOpacity={0} /></linearGradient></defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="createdAt" tickFormatter={(str) => new Date(str).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} domain={['auto', 'auto']} unit="°C" />
-                      <Tooltip contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none' }} labelFormatter={(label) => new Date(label).toLocaleTimeString('pt-BR')} />
-                      <Area type="monotone" dataKey="temperatura" stroke="#f59e0b" fillOpacity={1} fill="url(#colorTemp)" strokeWidth={2} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  <ClimateChart data={dadosGrafico} />
                 )}
               </CardContent>
             </Card>
